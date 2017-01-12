@@ -4,6 +4,8 @@
 
 This module allows to use different random generators in easy way. This can be used as just a wrapper for default Pseudo-Random generator in javascript allowing you to set maximum and minimum values to return random value.
 
+Check module on [NPMjs](https://www.npmjs.com/package/multi-random)
+
 # Install
     npm install multi-random
 
