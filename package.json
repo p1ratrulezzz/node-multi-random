@@ -1,0 +1,31 @@
+{
+  "name": "multi-random",
+  "version": "0.0.1",
+  "description": "Provides random using several random generators: JS default Math.random(), Quantum random and RandomOrg random",
+  "main": "src/multi-random.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/p1ratrulezzz/node-multi-random.git"
+  },
+  "dependencies": {
+    "memory-cache": "^0.1.6",
+    "request": "^2.55.0",
+    "sync-request": "^3.0.1",
+    "debug": "^2.2.0"
+  },
+  "keywords": [
+    "random",
+    "random-org",
+    "qrandom",
+    "multi-random"
+  ],
+  "author": "P1ratRuleZZZ",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/p1ratrulezzz/node-multi-random/issues"
+  },
+  "homepage": "https://github.com/p1ratrulezzz/node-multi-random#readme"
+}
