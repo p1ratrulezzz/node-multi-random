@@ -1,6 +1,6 @@
 {
   "name": "multi-random",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Provides random using several random generators: JS default Math.random(), Quantum random and RandomOrg random",
   "main": "src/multi-random.js",
   "scripts": {
