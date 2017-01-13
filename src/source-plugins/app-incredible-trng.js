@@ -9,19 +9,20 @@ const crypto = require('crypto');
 const request = require('request');
 const srequest = require('sync-request');
 const debug = require('debug')('multi-random');
+const querystring = require('querystring');
 
 /**
  * Constants
  * @private
  */
-const RANDOM_ORG_ENDPOINT = 'https://www.random.org';
+const APP_INCR_ENDPOINT = 'http://appincredible.com/controllers/randomnumbergenerator.php';
 
 /**
  *
  * @param options
  * @constructor
  */
-function RandomOrg(_options = {}) {
+function APPIncredibleGeneratorPlugin(_options = {}) {
   // Self reference.
   let self = this;
 
@@ -47,10 +48,11 @@ function RandomOrg(_options = {}) {
 
   // Merge defaults
   self.options.pluginOptions = Object.assign({
-    poolSize: 64,
-    buffPercent: 0.5,
+    poolSize: 512, // Size of pool (the real size will be this + 70% by default)
+    buffPercent: 0.7, // 0.7 == 70% of pool will be counted as poor and poolKeeper will fill it again
     poolKeeperEnabled: true,
-    poolKeeperInterval: 5000
+    poolKeeperInterval: 5000,
+    timeout: 5000 // Seconds to wait for response from server
   }, self.options.pluginOptions);
 
   // Methods
@@ -60,19 +62,19 @@ function RandomOrg(_options = {}) {
    * @returns {number} Number between 0 and 1
    */
   self.rand = function () {
-    if (self.pool.length == 0 || self.pool.length <= self.options.pluginOptions.poolSize * self.options.pluginOptions.buffPercent) {
+    if (self.pool === false || self.pool.length == 0 || self.pool.length <= self.options.pluginOptions.poolSize * self.options.pluginOptions.buffPercent) {
       debug('Pool is poor. Size %d', self.pool.length);
       refillPool();
 
-      if (self.options.blockingRand === true) {}
+      if (self.pool !== false && self.options.blockingRand === true) {}
       else if (self.options.supportFallback === true) {
-        if (self.pool.length == 0) {
+        if (self.pool === false || self.pool.length == 0) {
           debug('Return value from fallback');
           debug('Pool size is %d', self.pool.length);
           return Math.random();
         }
       }
-      else if (self.options.supportFallback !== true && self.pool.length == 0) {
+      else if (self.options.supportFallback !== true && self.pool === false || self.pool.length == 0) {
         throw Error('Pool doesn\'t have values');
       }
     }
@@ -97,11 +99,14 @@ function RandomOrg(_options = {}) {
   let poolCidRefill = crypto.createHash('sha1').update(__dirname + _cidSalt).digest('hex') + ':randomservice:refill';
 
   function parseResponsePool(err, data) {
-    let parsed = String(data).split('\n');
+    let parsed = data;
     let pool = [];
-    if (err === null && parsed.length !== undefined && parsed.length > 1) {
-      parsed.pop(); // Delete last empty element
-      pool = parsed;
+    if (err === null && parsed.success == true && parsed.multiRandom !== undefined) {
+      pool = parsed.multiRandom;
+      pool.forEach(function(value, index) {
+        let decimal = parseFloat(String('0.') + String(value));
+        pool[index] = decimal;
+      });
 
       // Merge with original pool
       pool = self.pool.concat(pool);
@@ -110,7 +115,7 @@ function RandomOrg(_options = {}) {
       pool = false;
     }
     else {
-      throw Error('Can\'t get entropy data from random.org. Your limit might be exceeded.');
+      throw Error('Can\'t get entropy data from qrng-au. Some error occured');
     }
 
     debug('Got new pool. Merging into current');
@@ -128,7 +133,7 @@ function RandomOrg(_options = {}) {
   }
 
   function refillPool() {
-    if (self.refill === true) {
+    if (!self.isReady()) {
       return;
     }
 
@@ -140,17 +145,23 @@ function RandomOrg(_options = {}) {
     if (self.options.blockingRand === true) {
       debug('Starting refill pool in sync mode');
       try {
-        let res = srequest('GET', RANDOM_ORG_ENDPOINT + '/decimal-fractions' + '/', {
-          qs: {
-            num: self.options.pluginOptions.poolSize,
-            dec: 6,
-            col: 1,
-            format: 'plain',
-            rnd: 'new'
-          }
+        let res = srequest('POST', APP_INCR_ENDPOINT, {
+          body: querystring.stringify({
+            numMin: 1000000000,
+            numMax: 9999999999,
+            numTotal: self.options.pluginOptions.poolSize,
+            numDecimal: 0,
+            rbAlgorithm: 2,
+            rbSeparator: 5,
+            rbSort: 1
+          }),
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          timeout: self.options.pluginOptions.timeout
         });
 
-        parseResponsePool(null, res.getBody('utf8'));
+        parseResponsePool(null, JSON.parse(res.getBody('utf8')));
       }
       catch (e) {
         parseResponsePool(true, null);
@@ -162,15 +173,19 @@ function RandomOrg(_options = {}) {
     }
     else {
       debug('Starting refill pool in async mode');
-      request(RANDOM_ORG_ENDPOINT + '/decimal-fractions' + '/', {
-        method: 'GET',
-        qs: {
-          num: self.options.pluginOptions.poolSize,
-          dec: 6,
-          col: 1,
-          format: 'plain',
-          rnd: 'new'
-        }
+      request(APP_INCR_ENDPOINT, {
+        method: 'POST',
+        formData: {
+          numMin: 1000000000,
+          numMax: 9999999999,
+          numTotal: self.options.pluginOptions.poolSize,
+          numDecimal: 0,
+          rbAlgorithm: 2,
+          rbSeparator: 5,
+          rbSort: 1
+        },
+        json: true,
+        timeout: self.options.pluginOptions.timeout
       }, function(err, response) {
         parseResponsePool(err, err === null ? response.body : null);
       });
@@ -207,4 +222,4 @@ function RandomOrg(_options = {}) {
   };
 };
 
-module.exports.plugin = RandomOrg;
+module.exports.plugin = APPIncredibleGeneratorPlugin;

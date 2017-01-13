@@ -5,27 +5,41 @@
  * @private
  */
 
-function MathRandom(options = {}) {
+function MathRandom(_options = {}) {
   // Self reference.
   let self = this;
 
-  // Merge defaults
-  options = Object.assign({}, options);
-
-  /*
-   * Properties
+  // Properties
+  /**
+   *
+   * @type {Object}
    */
+  self.options = _options;
+
+  // Merge defaults
+  self.options.pluginOptions = Object.assign({
+    poolSize: 64,
+    buffPercent: 0.5,
+    poolKeeperEnabled: true,
+    poolKeeperInterval: 5000
+  }, self.options.pluginOptions);
+
   /*
    * Methods
    */
 
+  /**
+   *
+   * @returns {number}
+   */
   self.rand = function () {
     return Math.random();
   };
 
   self.capabilities = function() {
     return {
-      rand: true
+      rand: true,
+      blockingRand: true
     };
   };
 }

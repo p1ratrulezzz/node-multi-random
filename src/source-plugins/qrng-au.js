@@ -14,14 +14,14 @@ const debug = require('debug')('multi-random');
  * Constants
  * @private
  */
-const RANDOM_ORG_ENDPOINT = 'https://www.random.org';
+const QRNG_AU_ENDPOINT = 'https://qrng.anu.edu.au/API/jsonI.php';
 
 /**
  *
  * @param options
  * @constructor
  */
-function RandomOrg(_options = {}) {
+function QrngGeneratorPlugin(_options = {}) {
   // Self reference.
   let self = this;
 
@@ -47,10 +47,12 @@ function RandomOrg(_options = {}) {
 
   // Merge defaults
   self.options.pluginOptions = Object.assign({
-    poolSize: 64,
-    buffPercent: 0.5,
+    poolSize: 512, // Size of pool (the real size will be this + 70% by default)
+    blockSize: 5, // Size of HEX block
+    buffPercent: 0.7, // 0.7 == 70% of pool will be counted as poor and poolKeeper will fill it again
     poolKeeperEnabled: true,
-    poolKeeperInterval: 5000
+    poolKeeperInterval: 5000,
+    timeout: 5000 // Seconds to wait for response from server
   }, self.options.pluginOptions);
 
   // Methods
@@ -97,11 +99,14 @@ function RandomOrg(_options = {}) {
   let poolCidRefill = crypto.createHash('sha1').update(__dirname + _cidSalt).digest('hex') + ':randomservice:refill';
 
   function parseResponsePool(err, data) {
-    let parsed = String(data).split('\n');
+    let parsed = data;
     let pool = [];
-    if (err === null && parsed.length !== undefined && parsed.length > 1) {
-      parsed.pop(); // Delete last empty element
-      pool = parsed;
+    if (err === null && parsed.success == true && parsed.data !== undefined) {
+      pool = parsed.data;
+      pool.forEach(function(value, index) {
+        let decimal = Number(String('0.') + String(parseInt(value, 16)));
+        pool[index] = decimal;
+      });
 
       // Merge with original pool
       pool = self.pool.concat(pool);
@@ -110,7 +115,7 @@ function RandomOrg(_options = {}) {
       pool = false;
     }
     else {
-      throw Error('Can\'t get entropy data from random.org. Your limit might be exceeded.');
+      throw Error('Can\'t get entropy data from qrng-au. Some error occured');
     }
 
     debug('Got new pool. Merging into current');
@@ -128,7 +133,7 @@ function RandomOrg(_options = {}) {
   }
 
   function refillPool() {
-    if (self.refill === true) {
+    if (!self.isReady()) {
       return;
     }
 
@@ -140,17 +145,16 @@ function RandomOrg(_options = {}) {
     if (self.options.blockingRand === true) {
       debug('Starting refill pool in sync mode');
       try {
-        let res = srequest('GET', RANDOM_ORG_ENDPOINT + '/decimal-fractions' + '/', {
+        let res = srequest('GET', QRNG_AU_ENDPOINT, {
           qs: {
-            num: self.options.pluginOptions.poolSize,
-            dec: 6,
-            col: 1,
-            format: 'plain',
-            rnd: 'new'
-          }
+            length: self.options.pluginOptions.poolSize,
+            size: self.options.pluginOptions.blockSize,
+            type: 'hex16'
+          },
+          timeout: self.options.pluginOptions.timeout
         });
 
-        parseResponsePool(null, res.getBody('utf8'));
+        parseResponsePool(null, JSON.parse(res.getBody('utf8')));
       }
       catch (e) {
         parseResponsePool(true, null);
@@ -162,15 +166,15 @@ function RandomOrg(_options = {}) {
     }
     else {
       debug('Starting refill pool in async mode');
-      request(RANDOM_ORG_ENDPOINT + '/decimal-fractions' + '/', {
+      request(QRNG_AU_ENDPOINT, {
         method: 'GET',
         qs: {
-          num: self.options.pluginOptions.poolSize,
-          dec: 6,
-          col: 1,
-          format: 'plain',
-          rnd: 'new'
-        }
+          length: self.options.pluginOptions.poolSize,
+          size: self.options.pluginOptions.blockSize,
+          type: 'hex16'
+        },
+        timeout: self.options.pluginOptions.timeout,
+        json: true
       }, function(err, response) {
         parseResponsePool(err, err === null ? response.body : null);
       });
@@ -207,4 +211,4 @@ function RandomOrg(_options = {}) {
   };
 };
 
-module.exports.plugin = RandomOrg;
+module.exports.plugin = QrngGeneratorPlugin;

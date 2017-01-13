@@ -46,7 +46,7 @@ function MultiRandom(options = {}) {
     'plugin': 'math-random',
     'pluginOptions': {},
     'blockingRand': false,
-    'supportFallback': true
+    'supportFallback': true,
   }, options);
 
   /*
