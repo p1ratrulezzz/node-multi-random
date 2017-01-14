@@ -18,7 +18,7 @@ function getPlugin(name, options = {}) {
       plugin = name;
     }
     else {
-      plugin = require('./source-plugins/' + name);
+      plugin = require(__dirname + '/source-plugins/' + name);
     }
 
     if (plugin === undefined || plugin.plugin === undefined) {
